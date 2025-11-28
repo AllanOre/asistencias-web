@@ -1,0 +1,19 @@
+{
+  "projects": {
+    "default": "sigehnd-d30d9",
+    "sigeh": "sigehnd-d30d9"
+  },
+  "targets": {
+    "sigehnd-d30d9": {
+      "hosting": {
+        "appOriginal": [
+          "sigehnd-d30d9"
+        ],
+        "lectoresApp": [
+          "lectores-app"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
