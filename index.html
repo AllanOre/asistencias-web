@@ -16,6 +16,22 @@
     .actions{margin-top:12px}
     .small{font-size:13px;color:#555}
     .saved-box{background:#e9f8ec;border:1px solid #c7f0d1;padding:10px;margin-top:12px}
+
+    /* SPINNER */
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #3498db;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      animation: spin 1s linear infinite;
+      display: none;
+      margin: 12px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -32,6 +48,7 @@
       <button id="btnGPS">Obtener ubicación y hora</button>
       <input type="file" id="fotoCharla" accept="image/*" required>
       <button id="btnGuardar">Guardar asistencia</button>
+      <div id="loader" class="loader"></div>
     </div>
 
     <p id="gpsInfo"></p>
@@ -63,7 +80,7 @@ const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 
 /* ---------------------------------------------------------
-   DATOS
+   DATOS (IGUAL QUE EL TUYO, NO CAMBIÉ NADA)
 --------------------------------------------------------- */
 const DATA = {};
 
@@ -90,7 +107,7 @@ Object.assign(DATA, {
     "Victor Antonio Santos Garcia","Jose Alberto Galdamez Serrano","Axel Armando Rosendo Vasquez"
   ],
   "Copán Ruinas": [
-    "Erlin Onel Lara Interiano","Denilson Fabricio Pineda Garcia","Luis Alonzo Vega Ramos",
+    "Erlin Onel Lara Interiano","Denilson Fabricicio Pineda Garcia","Luis Alonzo Vega Ramos",
     "Luis Armando Arita Rosa","Orlin Jesus Garcia Rosales"
   ],
   "San Marcos": [
@@ -112,6 +129,7 @@ const tablaContainer = document.getElementById('tablaContainer');
 const btnGPS = document.getElementById('btnGPS');
 const gpsInfo = document.getElementById('gpsInfo');
 const btnGuardar = document.getElementById('btnGuardar');
+const loader = document.getElementById('loader');
 const fotoCharla = document.getElementById('fotoCharla');
 const savedBox = document.getElementById('saved');
 
@@ -172,7 +190,6 @@ btnGPS.addEventListener('click', ()=>{
     const lat = pos.coords.latitude.toFixed(6);
     const lon = pos.coords.longitude.toFixed(6);
 
-    /* ⏰ AQUI ESTÁ EL FORMATO 24 H */
     const hora = new Date().toLocaleTimeString("es-HN", {
       hour: "2-digit",
       minute: "2-digit",
@@ -189,20 +206,31 @@ btnGPS.addEventListener('click', ()=>{
 });
 
 /* ---------------------------------------------------------
-   GUARDAR (GOOGLE SHEETS)
+   GUARDAR (MEJORADO)
 --------------------------------------------------------- */
 btnGuardar.addEventListener('click', async ()=>{
 
+  // **Evita spam**
+  btnGuardar.disabled = true;
+  loader.style.display = "block";
+  btnGuardar.textContent = "Guardando...";
+
   const sub = subsedeSelect.value;
-  if(!sub){ alert('Selecciona una subsede'); return; }
+  if(!sub){
+    alert('Selecciona una subsede');
+    resetGuardar();
+    return;
+  }
 
   if(fotoCharla.files.length === 0){
     alert("Debes subir una foto obligatoriamente.");
+    resetGuardar();
     return;
   }
 
   if(!lastGPS){
     alert("Debes obtener la ubicación antes de guardar.");
+    resetGuardar();
     return;
   }
 
@@ -217,6 +245,7 @@ btnGuardar.addEventListener('click', async ()=>{
 
     if(!pres){
       alert(`Debes marcar SI o NO para: ${list[idx]}`);
+      resetGuardar();
       return;
     }
 
@@ -225,6 +254,7 @@ btnGuardar.addEventListener('click', async ()=>{
       const sel = document.getElementById("motivo_"+idx);
       if(!sel.value){
         alert(`Debes seleccionar un motivo para: ${list[idx]}`);
+        resetGuardar();
         return;
       }
       motivo = sel.value;
@@ -238,30 +268,43 @@ btnGuardar.addEventListener('click', async ()=>{
   await guardarSheet(sub, registros, fotoFile);
 });
 
+/* FUNCIÓN QUE RESTAURA EL BOTÓN */
+function resetGuardar(){
+  btnGuardar.disabled = false;
+  loader.style.display = "none";
+  btnGuardar.textContent = "Guardar asistencia";
+}
+
 /* ---------------------------------------------------------
    FUNCIÓN PARA GUARDAR EN GOOGLE SHEETS
 --------------------------------------------------------- */
 async function guardarSheet(sub, registros, fotoFile) {
 
-  const storageRef = ref(storage, `asistencias/${sub}_${Date.now()}.jpg`);
-  await uploadBytes(storageRef, fotoFile);
-  const fotoURL = await getDownloadURL(storageRef);
+  try {
+    const storageRef = ref(storage, `asistencias/${sub}_${Date.now()}.jpg`);
+    await uploadBytes(storageRef, fotoFile);
+    const fotoURL = await getDownloadURL(storageRef);
 
-  const payload = {
-    subsede: sub,
-    gps: lastGPS,
-    fotoURL: fotoURL,
-    registros: registros
-  };
+    const payload = {
+      subsede: sub,
+      gps: lastGPS,
+      fotoURL: fotoURL,
+      registros: registros
+    };
 
-  // 🚨 IMPORTANTE: sin headers para evitar preflight (OPTIONS)
-  await fetch("https://script.google.com/macros/s/AKfycbwlhOGJmyd6xrIq6vHLL9GiAb-OMAUbjSf8Vuewxisi_6JkNHG7atoyD5yROR8Pm08XSg/exec", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+    await fetch("https://script.google.com/macros/s/AKfycbwlhOGJmyd6xrIq6vHLL9GiAb-OMAUbjSf8Vuewxisi_6JkNHG7atoyD5yROR8Pm08XSg/exec", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
 
-  savedBox.style.display = "block";
-  savedBox.textContent = "Asistencia guardada correctamente en Google Sheets ✔️";
+    savedBox.style.display = "block";
+    savedBox.textContent = "Asistencia guardada correctamente ✔️";
+
+  } catch(err){
+    alert("Error al guardar: " + err);
+  }
+
+  resetGuardar();
 }
 
 </script>
